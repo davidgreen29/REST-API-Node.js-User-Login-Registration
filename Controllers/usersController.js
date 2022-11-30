@@ -1,32 +1,81 @@
-const User = require('../model/User');
+const User = require('../Model/User')
+const Weight = require('../Model/Weight')
+const bcrypt = require('bcrypt')
 
-const getAllUsers = async (req, res) => {
-    const users = await User.find();
-    if (!users) return res.status(204).json({ 'message': 'No users found' });
-    res.json(users);
+
+
+
+// @desc Update a user
+// @route PATCH /users
+
+const updateUser = async (req, res) => {
+    const { id, username, email, password } = req.body
+
+    
+    if (!id || !username || !email) {
+        return res.status(400).json({ message: 'All fields except password are required' })
+    }
+
+    
+    const user = await User.findById(id).exec()
+
+    if (!user) {
+        return res.status(400).json({ message: 'User not found' })
+    }
+
+    const duplicate = await User.findOne({$or:[{username: user}, {email:email}]}).collation({ locale: 'en', strength: 2 }).lean().exec()
+
+   
+    if (duplicate && duplicate?._id.toString() !== id) {
+        return res.status(409).json({ message: 'Duplicate user' })
+    }
+
+    user.username = username
+    user.email = email
+    
+
+    if (password) {
+        
+        user.password = await bcrypt.hash(password, 10)  
+    }
+
+    const updatedUser = await user.save()
+
+    res.json({ message: `${updatedUser.username} updated` })
 }
+
+
+// @route DELETE /users
 
 const deleteUser = async (req, res) => {
-    if (!req?.body?.id) return res.status(400).json({ "message": 'User ID required' });
-    const user = await User.findOne({ _id: req.body.id }).exec();
-    if (!user) {
-        return res.status(204).json({ 'message': `User ID ${req.body.id} not found` });
-    }
-    const result = await user.deleteOne({ _id: req.body.id });
-    res.json(result);
-}
+    const { id } = req.body
 
-const getUser = async (req, res) => {
-    if (!req?.params?.id) return res.status(400).json({ "message": 'User ID required' });
-    const user = await User.findOne({ _id: req.params.id }).exec();
-    if (!user) {
-        return res.status(204).json({ 'message': `User ID ${req.params.id} not found` });
+    // Confirm data
+    if (!id) {
+        return res.status(400).json({ message: 'User ID Required' })
     }
-    res.json(user);
+
+    
+    const weight = await Weight.findOne({ user: id }).lean().exec()
+    if (weight) {
+        weight.delete();
+    }
+
+    
+    const user = await User.findById(id).exec()
+
+    if (!user) {
+        return res.status(400).json({ message: 'User not found' })
+    }
+
+    const result = await user.deleteOne()
+
+    const reply = `Username ${result.username} with ID ${result._id} deleted`
+
+    res.json(reply)
 }
 
 module.exports = {
-    getAllUsers,
-    deleteUser,
-    getUser
+    updateUser,
+    deleteUser
 }

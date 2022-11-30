@@ -4,12 +4,12 @@ const jwt = require('jsonwebtoken');
 
 
 const handleLogin = async (req,res) =>{
-    const {user, email, password} =req.body;
-        if(!user || !email || !password){
+    const {username, email, password} =req.body;
+        if(!username || !email || !password){
             return res.status(400).json({'message': 'Username, email, and password required'});
         }
 
-    const foundUser = await User.findOne({username: user}).exec();
+    const foundUser = await User.findOne({username}).exec();
         if(!foundUser){
             return res.sendStatus(401);
     }
@@ -19,13 +19,17 @@ const handleLogin = async (req,res) =>{
             const accessToken = jwt.sign(
                 {
                 "UserInfo": {
-                    "username": foundUser.username
+                    "username": foundUser.username,
+                    "userId": foundUser._id
                 }
             },process.env.ACCESS_TOKEN,
             { expiresIn: '30m' }
         );
         const refreshToken = jwt.sign(
-            { "username": foundUser.username },
+            { 
+                "username": foundUser.username,
+                "userId":foundUser._id
+            },
             process.env.REFRESH_TOKEN,
             { expiresIn: '1d' }
         );
@@ -33,9 +37,9 @@ const handleLogin = async (req,res) =>{
         foundUser.refreshToken = refreshToken;
         const result = await foundUser.save();
         
-        res.cookie('jwt', refreshToken, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 24 * 60 * 60 * 1000 });
+        res.cookie('jwt', refreshToken, { httpOnly: true, secure: true, sameSite: 'None',secure: true, maxAge: 24 * 60 * 60 * 1000 });
 
-        res.json({ roles, accessToken });
+        res.json({accessToken});
 
     } else {
         res.sendStatus(401);
@@ -43,4 +47,5 @@ const handleLogin = async (req,res) =>{
 }
 
 module.exports ={handleLogin}
+
        
